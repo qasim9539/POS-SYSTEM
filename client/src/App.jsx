@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import SettingsPage from './features/settings/SettingsPage';
 import AlertCenter from './features/AlertCenter/AlertCenter';
+import ProductsPage from './features/products/ProductsPage';
 
 function App() {
   return (
@@ -8,6 +9,7 @@ function App() {
       <Route path="/" element={<SettingsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/alerts" element={<AlertCenter />} />
+      <Route path="/products" element={<ProductsPage />} />
     </Routes>
   );
 }
