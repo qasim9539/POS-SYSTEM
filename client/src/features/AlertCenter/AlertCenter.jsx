@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
+import axios from 'axios';
 
 // ─── SVG Icon wrapper ────────────────────────────────────────────────────────
 const Icon = ({ children, className = "" }) => (
@@ -169,29 +170,103 @@ function RiskProduct({ name, sku, pct, color, stock, depletes }) {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function AlertCenter() {
   const [collapsed, setCollapsed] = useState(false);
+  const [criticalAlerts, setCriticalAlerts] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [riskProducts, setRiskProducts] = useState([]);
+  const [summary, setSummary] = useState({
+    totalProducts: 0,
+    totalSales: 0,
+    totalRevenue: 0,
+    lowStockCount: 0
+  });
+  const [loading, setLoading] = useState(true);
 
-  const criticalAlerts = [
-    { name: "Wireless Headphones",  sku: "SKU-1042", stock: "2 units", date: "22 Jun 2026, 09:15 AM" },
-    { name: "Running Shoes Pro",    sku: "SKU-2218", stock: "1 unit",  date: "22 Jun 2026, 09:05 AM" },
-    { name: "Coffee Blend Premium", sku: "SKU-3091", stock: "0 units", date: "22 Jun 2026, 08:50 AM" },
-    { name: "USB-C Hub",            sku: "SKU-1175", stock: "1 unit",  date: "22 Jun 2026, 08:30 AM" },
-  ];
+  // Helper to format timestamps into readable relative strings
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  };
 
-  const notifications = [
-    { color:"green",  title:"Inventory updated",    sub:"Product quantities updated successfully",  time:"10 min ago", dot:true  },
-    { color:"orange", title:"Stock replenished",    sub:"Wireless Headphones stock increased",      time:"25 min ago", dot:true  },
-    { color:"blue",   title:"Invoice generated",    sub:"INV-10045 has been generated",             time:"45 min ago", dot:true  },
-    { color:"red",    title:"Product deleted",      sub:"Old Keyboard Model has been removed",      time:"1 hour ago", dot:false },
-    { color:"teal",   title:"Sales target achieved",sub:"Daily sales target of $15,000 achieved",  time:"2 hours ago",dot:true  },
-  ];
+  // Load all analytics and alert feeds from Express API
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch stats summary
+      const summaryRes = await axios.get('/api/analytics/summary');
+      setSummary(summaryRes.data);
 
-  const riskProducts = [
-    { name:"Wireless Headphones",  sku:"SKU-1042",  pct:95, color:"red",    stock:"Stock: 2 units", depletes:"Depletes by: 24 Jun 2026" },
-    { name:"Running Shoes Pro",    sku:"SKU-2218",  pct:85, color:"red",    stock:"Stock: 1 unit",  depletes:"Depletes by: 23 Jun 2026" },
-    { name:"Coffee Blend Premium", sku:"SKU-3091",  pct:80, color:"orange", stock:"Stock: 0 units", depletes:"Depletes by: 21 Jun 2026" },
-    { name:"USB-C Hub",            sku:"SKU-1175",  pct:70, color:"orange", stock:"Stock: 1 unit",  depletes:"Depletes by: 25 Jun 2026" },
-    { name:'27" Monitor Ultra',    sku:"SKU-L5680", pct:60, color:"yellow", stock:"Stock: 4 units", depletes:"Depletes by: 28 Jun 2026" },
-  ];
+      // Fetch low-stock items
+      const lowStockRes = await axios.get('/api/analytics/low-stock');
+      const lowStockData = lowStockRes.data;
+
+      // Map to critical alerts (where stock is low or out of stock)
+      const mappedCritical = lowStockData.map(p => ({
+        name: p.name,
+        sku: p.sku,
+        stock: `${p.stockQuantity} units`,
+        date: p.stockQuantity === 0 ? "Out of Stock alert" : "Low Stock alert"
+      }));
+      setCriticalAlerts(mappedCritical);
+
+      // Map to top risk products including visual risk percentages
+      const mappedRisk = lowStockData.map(p => {
+        const threshold = p.lowStockThreshold || 5;
+        const stock = p.stockQuantity;
+        // risk percentage calculation (0% if safe, 100% if empty)
+        const pct = threshold > 0 ? Math.min(100, Math.round(((threshold - stock) / threshold) * 100)) : 100;
+        const color = pct >= 80 ? "red" : pct >= 50 ? "orange" : "yellow";
+        return {
+          name: p.name,
+          sku: p.sku,
+          pct: pct,
+          color: color,
+          stock: `Stock: ${stock} units`,
+          depletes: `Threshold: ${threshold} units`
+        };
+      }).sort((a, b) => b.pct - a.pct);
+      setRiskProducts(mappedRisk);
+
+      // Fetch dynamic recent notifications
+      const notifRes = await axios.get('/api/notifications');
+      const mappedNotif = notifRes.data.map(n => ({
+        id: n._id,
+        color: n.type === 'success' ? 'green' : n.type === 'warning' ? 'orange' : n.type === 'error' ? 'red' : 'blue',
+        title: n.title,
+        sub: n.message,
+        time: formatTimeAgo(n.createdAt),
+        dot: !n.isRead
+      }));
+      setNotifications(mappedNotif);
+
+    } catch (err) {
+      console.error("Error loading alerts details:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleResolveAll = async () => {
+    try {
+      await axios.put('/api/notifications/mark-read');
+      // Refresh the lists
+      loadData();
+    } catch (err) {
+      console.error("Error marking notifications as read:", err);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
@@ -234,14 +309,14 @@ export default function AlertCenter() {
         <div className="p-6 space-y-6">
           {/* Stat Cards */}
           <div className="grid grid-cols-4 gap-4">
-            <StatCard label="Critical Alerts" count="12" delta="25" deltaDir="up"
+            <StatCard label="Critical Alerts (0 Stock)" count={loading ? "..." : criticalAlerts.filter(a => a.stock.startsWith('0 ')).length.toString()} delta="0" deltaDir="down"
               icon={<div className="bg-red-50 rounded-xl p-3"><svg viewBox="0 0 24 24" className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>}/>
-            <StatCard label="Low Stock Alerts" count="34" delta="15" deltaDir="up"
+            <StatCard label="Low Stock Alerts" count={loading ? "..." : summary.lowStockCount.toString()} delta="15" deltaDir="up"
               icon={<div className="bg-orange-50 rounded-xl p-3"><svg viewBox="0 0 24 24" className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>}/>
-            <StatCard label="Pending Actions" count="18" delta="10" deltaDir="up"
-              icon={<div className="bg-blue-50 rounded-xl p-3"><svg viewBox="0 0 24 24" className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>}/>
-            <StatCard label="Resolved Alerts" count="67" delta="20" deltaDir="down"
-              icon={<div className="bg-green-50 rounded-xl p-3"><svg viewBox="0 0 24 24" className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>}/>
+            <StatCard label="Total Sales History" count={loading ? "..." : summary.totalSales.toString()} delta="10" deltaDir="up"
+              icon={<div className="bg-blue-50 rounded-xl p-3"><svg viewBox="0 0 24 24" className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg></div>}/>
+            <StatCard label="Total Revenue" count={loading ? "..." : `$${summary.totalRevenue.toFixed(2)}`} delta="20" deltaDir="up"
+              icon={<div className="bg-green-50 rounded-xl p-3"><svg viewBox="0 0 24 24" className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>}/>
           </div>
 
           {/* 3 Columns */}
@@ -359,7 +434,10 @@ export default function AlertCenter() {
                     </div>
                   </button>
                 ))}
-                <button className="col-span-2 flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3 hover:bg-gray-100 transition-colors text-left">
+                <button 
+                  onClick={handleResolveAll}
+                  className="col-span-2 flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3 hover:bg-gray-100 transition-colors text-left w-full cursor-pointer"
+                >
                   <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center shrink-0">
                     <svg viewBox="0 0 24 24" className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                   </div>

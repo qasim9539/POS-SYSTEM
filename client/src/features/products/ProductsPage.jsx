@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../../components/Sidebar';
+import axios from 'axios';
 
 // ─── SVG Icon wrapper ────────────────────────────────────────────────────────
 const Icon = ({ children, className = "" }) => (
@@ -162,17 +163,40 @@ export default function ProductsPage() {
   const [newProductThreshold, setNewProductThreshold] = useState("5");
   const [newProductDesc, setNewProductDesc] = useState("");
 
-  // Initial Products State
-  const [products, setProducts] = useState([
-    { id: 1, barcode: "8801097230412", name: "Wireless Headphones Pro", category: "Electronics", price: 248.00, cost: 120.00, stock: 142, lowStockThreshold: 10, description: "Premium sound canceling headphones." },
-    { id: 2, barcode: "8801097230559", name: "Smart Watch Series X", category: "Electronics", price: 449.00, cost: 210.00, stock: 38, lowStockThreshold: 5, description: "Multi-functional smart wearable." },
-    { id: 3, barcode: "8801097230665", name: "Running Shoes Pro", category: "Clothing", price: 215.00, cost: 89.00, stock: 5, lowStockThreshold: 15, description: "Lightweight professional running sneakers." },
-    { id: 4, barcode: "8801097230771", name: "USB-C Hub 7-Port", category: "Electronics", price: 69.00, cost: 28.00, stock: 204, lowStockThreshold: 20, description: "High speed multi-port extension hub." },
-    { id: 5, barcode: "8801097230887", name: "Coffee Blend Premium 1kg", category: "Food & Bev", price: 15.00, cost: 6.50, stock: 8, lowStockThreshold: 10, description: "Rich aromatic roasted coffee beans." },
-    { id: 6, barcode: "8801097230993", name: "Garden Tool Set 5-Piece", category: "Home & Garden", price: 70.00, cost: 31.00, stock: 0, lowStockThreshold: 5, description: "Premium heavy-duty rust-free gardening tools." },
-    { id: 7, barcode: "8801097230101", name: "Noise Cancelling Earbuds", category: "Electronics", price: 129.00, cost: 55.00, stock: 91, lowStockThreshold: 10, description: "True wireless smart sports earbuds." },
-    { id: 8, barcode: "8801097230202", name: "Yoga Mat Non-Slip", category: "Clothing", price: 45.00, cost: 18.00, stock: 67, lowStockThreshold: 8, description: "Eco-friendly non-slip exercise yoga mat." }
-  ]);
+  // Dynamic Products State loaded from backend
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Helper to map backend product to frontend structure
+  const mapBackendProduct = (p) => ({
+    id: p._id,
+    barcode: p.sku,
+    name: p.name,
+    category: p.category,
+    price: p.sellingPrice,
+    cost: p.purchasePrice,
+    stock: p.stockQuantity,
+    lowStockThreshold: p.lowStockThreshold || 5,
+    description: p.description || ""
+  });
+
+  // Fetch products from backend Express API
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get('/api/products');
+      const mapped = res.data.map(mapBackendProduct);
+      setProducts(mapped);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const barcodeInputRef = useRef(null);
 
@@ -207,7 +231,7 @@ export default function ProductsPage() {
   }, [showRegisterModal]);
 
   // Handle scanned barcodes
-  const handleBarcodeScan = (code) => {
+  const handleBarcodeScan = async (code) => {
     if (!code || code.trim() === "") return;
     
     // Play hardware scanner beep sound
@@ -215,40 +239,59 @@ export default function ProductsPage() {
     setLastScanned(code);
     
     // Check if barcode exists in current products
-    const existingIndex = products.findIndex(p => p.barcode === code);
+    const existingProduct = products.find(p => p.barcode === code);
     
-    if (existingIndex > -1) {
-      // Product exists -> Increment stock
-      const updated = [...products];
-      updated[existingIndex].stock += 1;
-      setProducts(updated);
-      setScanMessage({
-        type: "success",
-        text: `"${updated[existingIndex].name}" scanned! Stock incremented to ${updated[existingIndex].stock}.`
-      });
-      setBarcodeInput("");
+    if (existingProduct) {
+      // Product exists -> Increment stock in backend and UI
+      const newStock = existingProduct.stock + 1;
+      try {
+        const res = await axios.put(`/api/products/${existingProduct.id}`, {
+          stockQuantity: newStock
+        });
+        const updatedProduct = mapBackendProduct(res.data);
+        setProducts(prev => prev.map(p => p.id === existingProduct.id ? updatedProduct : p));
+        setScanMessage({
+          type: "success",
+          text: `"${existingProduct.name}" scanned! Stock incremented to ${newStock}.`
+        });
+        setBarcodeInput("");
+      } catch (err) {
+        console.error("Error updating stock quantity:", err);
+        setScanMessage({
+          type: "error",
+          text: `Failed to update stock for "${existingProduct.name}".`
+        });
+      }
     } else {
       // Check if it's in our catalog of known items
       const catalogItem = BARCODE_CATALOG[code];
       if (catalogItem) {
         // Add item from catalog
-        const newProduct = {
-          id: products.length + 1,
-          barcode: code,
-          name: catalogItem.name,
-          category: catalogItem.category,
-          price: catalogItem.price,
-          cost: catalogItem.cost,
-          stock: 1,
-          lowStockThreshold: catalogItem.lowStockThreshold,
-          description: catalogItem.description
-        };
-        setProducts(prev => [newProduct, ...prev]);
-        setScanMessage({
-          type: "success",
-          text: `"${catalogItem.name}" scanned and registered automatically from global registry!`
-        });
-        setBarcodeInput("");
+        try {
+          const res = await axios.post('/api/products', {
+            name: catalogItem.name,
+            sku: code,
+            category: catalogItem.category,
+            sellingPrice: catalogItem.price,
+            purchasePrice: catalogItem.cost,
+            stockQuantity: 1,
+            lowStockThreshold: catalogItem.lowStockThreshold,
+            description: catalogItem.description
+          });
+          const newProduct = mapBackendProduct(res.data);
+          setProducts(prev => [newProduct, ...prev]);
+          setScanMessage({
+            type: "success",
+            text: `"${catalogItem.name}" scanned and registered automatically from global registry!`
+          });
+          setBarcodeInput("");
+        } catch (err) {
+          console.error("Error auto-registering catalog product:", err);
+          setScanMessage({
+            type: "error",
+            text: `Failed to auto-register catalog product "${catalogItem.name}".`
+          });
+        }
       } else {
         // Unregistered barcode -> Open Registration Modal
         setRegisterBarcode(code);
@@ -264,36 +307,40 @@ export default function ProductsPage() {
       }
     }
     
-    // Auto-clear notification after 4 seconds
+    // Auto-clear notification after 4.5 seconds
     setTimeout(() => {
       setScanMessage(null);
     }, 4500);
   };
 
   // Submit manual registration
-  const handleRegisterProduct = (e) => {
+  const handleRegisterProduct = async (e) => {
     e.preventDefault();
     if (!newProductName.trim()) return;
 
-    const newProduct = {
-      id: products.length + 1,
-      barcode: registerBarcode,
-      name: newProductName,
-      category: newProductCategory,
-      price: parseFloat(newProductPrice) || 0,
-      cost: parseFloat(newProductCost) || 0,
-      stock: parseInt(newProductStock) || 0,
-      lowStockThreshold: parseInt(newProductThreshold) || 5,
-      description: newProductDesc
-    };
-
-    setProducts(prev => [newProduct, ...prev]);
-    setShowRegisterModal(false);
-    setBarcodeInput("");
-    setScanMessage({
-      type: "success",
-      text: `New product "${newProductName}" successfully registered under barcode: ${registerBarcode}!`
-    });
+    try {
+      const res = await axios.post('/api/products', {
+        name: newProductName,
+        sku: registerBarcode,
+        category: newProductCategory,
+        sellingPrice: parseFloat(newProductPrice) || 0,
+        purchasePrice: parseFloat(newProductCost) || 0,
+        stockQuantity: parseInt(newProductStock) || 0,
+        lowStockThreshold: parseInt(newProductThreshold) || 5,
+        description: newProductDesc
+      });
+      const newProduct = mapBackendProduct(res.data);
+      setProducts(prev => [newProduct, ...prev]);
+      setShowRegisterModal(false);
+      setBarcodeInput("");
+      setScanMessage({
+        type: "success",
+        text: `New product "${newProductName}" successfully registered under barcode: ${registerBarcode}!`
+      });
+    } catch (err) {
+      console.error("Error manually registering product:", err);
+      alert(err.response?.data?.message || "Failed to register product");
+    }
     
     setTimeout(() => {
       setScanMessage(null);
@@ -301,9 +348,15 @@ export default function ProductsPage() {
   };
 
   // Delete product handler
-  const handleDeleteProduct = (id, name) => {
+  const handleDeleteProduct = async (id, name) => {
     if (window.confirm(`Are you sure you want to delete ${name}?`)) {
-      setProducts(products.filter(p => p.id !== id));
+      try {
+        await axios.delete(`/api/products/${id}`);
+        setProducts(prev => prev.filter(p => p.id !== id));
+      } catch (err) {
+        console.error("Error deleting product:", err);
+        alert(err.response?.data?.message || "Failed to delete product");
+      }
     }
   };
 
@@ -378,28 +431,28 @@ export default function ProductsPage() {
               <div className="bg-white border border-gray-150 rounded-xl p-4 flex items-center justify-between shadow-sm">
                 <div>
                   <p className="text-xs text-gray-400 font-semibold mb-1">Total Products</p>
-                  <p className="text-2xl font-bold text-gray-800">2,847</p>
+                  <p className="text-2xl font-bold text-gray-800">{loading ? '...' : totalCount.toLocaleString()}</p>
                 </div>
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
               </div>
               <div className="bg-white border border-gray-150 rounded-xl p-4 flex items-center justify-between shadow-sm">
                 <div>
                   <p className="text-xs text-gray-400 font-semibold mb-1">In Stock</p>
-                  <p className="text-2xl font-bold text-gray-800">2,681</p>
+                  <p className="text-2xl font-bold text-gray-800">{loading ? '...' : inStockCount.toLocaleString()}</p>
                 </div>
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
               </div>
               <div className="bg-white border border-gray-150 rounded-xl p-4 flex items-center justify-between shadow-sm">
                 <div>
                   <p className="text-xs text-gray-400 font-semibold mb-1">Low Stock</p>
-                  <p className="text-2xl font-bold text-gray-800">143</p>
+                  <p className="text-2xl font-bold text-gray-800">{loading ? '...' : lowStockCount.toLocaleString()}</p>
                 </div>
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               </div>
               <div className="bg-white border border-gray-150 rounded-xl p-4 flex items-center justify-between shadow-sm">
                 <div>
                   <p className="text-xs text-gray-400 font-semibold mb-1">Out of Stock</p>
-                  <p className="text-2xl font-bold text-gray-800">23</p>
+                  <p className="text-2xl font-bold text-gray-800">{loading ? '...' : outOfStockCount.toLocaleString()}</p>
                 </div>
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
               </div>
