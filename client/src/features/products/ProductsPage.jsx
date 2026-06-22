@@ -185,10 +185,16 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       const res = await axios.get('/api/products');
-      const mapped = res.data.map(mapBackendProduct);
-      setProducts(mapped);
+      if (Array.isArray(res.data)) {
+        const mapped = res.data.map(mapBackendProduct);
+        setProducts(mapped);
+      } else {
+        console.error("Expected array but got:", res.data);
+        setProducts([]);
+      }
     } catch (err) {
       console.error("Error fetching products:", err);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -391,7 +397,7 @@ export default function ProductsPage() {
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
       {/* Main Container */}
-      <main className="flex-1 overflow-y-auto flex flex-col h-screen">
+      <main className={`flex-1 overflow-y-auto flex flex-col h-screen transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-60'}`}>
         
         {/* Topbar */}
         <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">

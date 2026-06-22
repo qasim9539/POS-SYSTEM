@@ -36,14 +36,11 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 5,
     min: 0
-<<<<<<< HEAD
   },
   description: {
     type: String,
     trim: true,
     default: ''
-=======
->>>>>>> Amira-branch
   }
 }, { timestamps: true });
 

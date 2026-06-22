@@ -1,9 +1,6 @@
 const Sale = require('./sale.model');
 const Product = require('../products/product.model');
-<<<<<<< HEAD
 const Notification = require('../notifications/notification.model');
-=======
->>>>>>> Amira-branch
 
 // Create a new sale and deduct stock
 exports.createSale = async (req, res) => {
@@ -51,7 +48,6 @@ exports.createSale = async (req, res) => {
       );
     }
 
-<<<<<<< HEAD
     // Create Notification
     await Notification.create({
       title: 'Invoice Generated',
@@ -59,8 +55,6 @@ exports.createSale = async (req, res) => {
       type: 'success'
     });
 
-=======
->>>>>>> Amira-branch
     res.status(201).json(savedSale);
   } catch (error) {
     res.status(500).json({ message: 'Error creating sale', error: error.message });
@@ -104,7 +98,6 @@ exports.deleteSale = async (req, res) => {
 
     await Sale.findByIdAndDelete(req.params.id);
 
-<<<<<<< HEAD
     // Create Notification
     await Notification.create({
       title: 'Sale Deleted',
@@ -112,8 +105,6 @@ exports.deleteSale = async (req, res) => {
       type: 'warning'
     });
 
-=======
->>>>>>> Amira-branch
     res.status(200).json({ message: 'Sale deleted and inventory restored successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting sale', error: error.message });

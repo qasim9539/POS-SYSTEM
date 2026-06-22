@@ -24,7 +24,7 @@ const SettingsPage = () => {
       <Sidebar collapsed={sidebarCollapse} setCollapsed={setSidebarCollapse} />
 
       {/* ========== MAIN CONTENT ========== */}
-      <div className="flex-1 overflow-y-auto flex flex-col h-screen">
+      <div className={`flex-1 overflow-y-auto flex flex-col h-screen transition-all duration-300 ${sidebarCollapse ? 'ml-16' : 'ml-60'}`}>
 
         {/* TOPBAR */}
         <div className="bg-white border-b border-gray-200 px-7 py-3 flex items-center justify-between sticky top-0 z-40">

@@ -202,50 +202,66 @@ export default function AlertCenter() {
       
       // Fetch stats summary
       const summaryRes = await axios.get('/api/analytics/summary');
-      setSummary(summaryRes.data);
+      if (summaryRes.data && typeof summaryRes.data === 'object') {
+        setSummary({
+          totalProducts: summaryRes.data.totalProducts || 0,
+          totalSales: summaryRes.data.totalSales || 0,
+          totalRevenue: summaryRes.data.totalRevenue || 0,
+          lowStockCount: summaryRes.data.lowStockCount || 0
+        });
+      }
 
       // Fetch low-stock items
       const lowStockRes = await axios.get('/api/analytics/low-stock');
       const lowStockData = lowStockRes.data;
 
-      // Map to critical alerts (where stock is low or out of stock)
-      const mappedCritical = lowStockData.map(p => ({
-        name: p.name,
-        sku: p.sku,
-        stock: `${p.stockQuantity} units`,
-        date: p.stockQuantity === 0 ? "Out of Stock alert" : "Low Stock alert"
-      }));
-      setCriticalAlerts(mappedCritical);
-
-      // Map to top risk products including visual risk percentages
-      const mappedRisk = lowStockData.map(p => {
-        const threshold = p.lowStockThreshold || 5;
-        const stock = p.stockQuantity;
-        // risk percentage calculation (0% if safe, 100% if empty)
-        const pct = threshold > 0 ? Math.min(100, Math.round(((threshold - stock) / threshold) * 100)) : 100;
-        const color = pct >= 80 ? "red" : pct >= 50 ? "orange" : "yellow";
-        return {
+      if (Array.isArray(lowStockData)) {
+        // Map to critical alerts (where stock is low or out of stock)
+        const mappedCritical = lowStockData.map(p => ({
           name: p.name,
           sku: p.sku,
-          pct: pct,
-          color: color,
-          stock: `Stock: ${stock} units`,
-          depletes: `Threshold: ${threshold} units`
-        };
-      }).sort((a, b) => b.pct - a.pct);
-      setRiskProducts(mappedRisk);
+          stock: `${p.stockQuantity} units`,
+          date: p.stockQuantity === 0 ? "Out of Stock alert" : "Low Stock alert"
+        }));
+        setCriticalAlerts(mappedCritical);
+
+        // Map to top risk products including visual risk percentages
+        const mappedRisk = lowStockData.map(p => {
+          const threshold = p.lowStockThreshold || 5;
+          const stock = p.stockQuantity;
+          // risk percentage calculation (0% if safe, 100% if empty)
+          const pct = threshold > 0 ? Math.min(100, Math.round(((threshold - stock) / threshold) * 100)) : 100;
+          const color = pct >= 80 ? "red" : pct >= 50 ? "orange" : "yellow";
+          return {
+            name: p.name,
+            sku: p.sku,
+            pct: pct,
+            color: color,
+            stock: `Stock: ${stock} units`,
+            depletes: `Threshold: ${threshold} units`
+          };
+        }).sort((a, b) => b.pct - a.pct);
+        setRiskProducts(mappedRisk);
+      } else {
+        setCriticalAlerts([]);
+        setRiskProducts([]);
+      }
 
       // Fetch dynamic recent notifications
       const notifRes = await axios.get('/api/notifications');
-      const mappedNotif = notifRes.data.map(n => ({
-        id: n._id,
-        color: n.type === 'success' ? 'green' : n.type === 'warning' ? 'orange' : n.type === 'error' ? 'red' : 'blue',
-        title: n.title,
-        sub: n.message,
-        time: formatTimeAgo(n.createdAt),
-        dot: !n.isRead
-      }));
-      setNotifications(mappedNotif);
+      if (Array.isArray(notifRes.data)) {
+        const mappedNotif = notifRes.data.map(n => ({
+          id: n._id,
+          color: n.type === 'success' ? 'green' : n.type === 'warning' ? 'orange' : n.type === 'error' ? 'red' : 'blue',
+          title: n.title,
+          sub: n.message,
+          time: formatTimeAgo(n.createdAt),
+          dot: !n.isRead
+        }));
+        setNotifications(mappedNotif);
+      } else {
+        setNotifications([]);
+      }
 
     } catch (err) {
       console.error("Error loading alerts details:", err);
@@ -272,7 +288,7 @@ export default function AlertCenter() {
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      <main className="flex-1 overflow-y-auto">
+      <main className={`flex-1 overflow-y-auto transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-60'}`}>
         {/* Top Bar */}
         <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
           <div>
