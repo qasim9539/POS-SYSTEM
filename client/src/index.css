@@ -1,8 +1,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-<<<<<<< HEAD
-=======
 
 html,
 body,
@@ -37,4 +35,3 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
->>>>>>> Amira-branch

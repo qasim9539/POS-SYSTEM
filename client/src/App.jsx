@@ -1,5 +1,8 @@
-<<<<<<< HEAD
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom'
+import SalesPage from './features/sales/SalesPage.jsx'
+import ReportsPage from './features/reports/ReportsPage.jsx'
+import InventoryPage from './features/inventory/InventoryPage.jsx'
+import HelpPage from './features/help/HelpPage.jsx'
 import SettingsPage from './features/settings/SettingsPage';
 import AlertCenter from './features/AlertCenter/AlertCenter';
 import ProductsPage from './features/products/ProductsPage';
@@ -7,35 +10,16 @@ import ProductsPage from './features/products/ProductsPage';
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<SettingsPage />} />
+      <Route path="/" element={<InventoryPage />} />
+      <Route path="/sales" element={<SalesPage />} />
+      <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/inventory" element={<InventoryPage />} />
+      <Route path="/help" element={<HelpPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/alerts" element={<AlertCenter />} />
       <Route path="/products" element={<ProductsPage />} />
     </Routes>
-  );
-}
-
-export default App;
-=======
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import SalesPage from './features/sales/SalesPage.jsx'
-import ReportsPage from './features/reports/ReportsPage.jsx'
-import InventoryPage from './features/inventory/InventoryPage.jsx'
-import HelpPage from './features/help/HelpPage.jsx'
-
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<InventoryPage />} />
-        <Route path="/sales" element={<SalesPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/inventory" element={<InventoryPage />} />
-        <Route path="/help" element={<HelpPage />} />
-      </Routes>
-    </BrowserRouter>
   )
 }
 
 export default App
->>>>>>> Amira-branch
