@@ -1,5 +1,8 @@
 const Product = require('./product.model');
+<<<<<<< HEAD
 const Notification = require('../notifications/notification.model');
+=======
+>>>>>>> Amira-branch
 
 // Create a new product
 exports.createProduct = async (req, res) => {
@@ -24,6 +27,7 @@ exports.createProduct = async (req, res) => {
 
     const savedProduct = await newProduct.save();
 
+<<<<<<< HEAD
     // Create Notification
     await Notification.create({
       title: 'Product Added',
@@ -31,6 +35,8 @@ exports.createProduct = async (req, res) => {
       type: 'success'
     });
 
+=======
+>>>>>>> Amira-branch
     res.status(201).json(savedProduct);
   } catch (error) {
     res.status(500).json({ message: 'Error creating product', error: error.message });
@@ -73,6 +79,7 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+<<<<<<< HEAD
     // Create Notification
     await Notification.create({
       title: 'Product Updated',
@@ -80,6 +87,8 @@ exports.updateProduct = async (req, res) => {
       type: 'info'
     });
 
+=======
+>>>>>>> Amira-branch
     res.status(200).json(updatedProduct);
   } catch (error) {
     res.status(500).json({ message: 'Error updating product', error: error.message });
@@ -94,6 +103,7 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+<<<<<<< HEAD
     // Create Notification
     await Notification.create({
       title: 'Product Deleted',
@@ -101,6 +111,8 @@ exports.deleteProduct = async (req, res) => {
       type: 'warning'
     });
 
+=======
+>>>>>>> Amira-branch
     res.status(200).json({ message: 'Product deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting product', error: error.message });
